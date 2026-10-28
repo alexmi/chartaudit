@@ -1,0 +1,10 @@
+data/private/
+.env
+.venv/
+runs/
+__pycache__/
+*.egg-info/
+reports/
+research_notes/
+.superpowers/
+.pytest_cache/
