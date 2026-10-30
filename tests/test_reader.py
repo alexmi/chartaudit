@@ -116,3 +116,21 @@ def test_unknown_provider_raises(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(ReadError, match="unknown provider"):
         make_client("nope")
+
+
+@pytest.mark.parametrize("provider,key_name,base,model", [
+    ("openai", "OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-5.5"),
+    ("anthropic", "ANTHROPIC_API_KEY", "https://api.anthropic.com/v1", "claude-opus-5-5"),
+])
+def test_other_providers_use_their_own_key_and_url(monkeypatch, tmp_path, provider, key_name, base, model):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(key_name, "test-not-a-real-key")
+    client, got = make_client(provider)
+    assert str(client.base_url).startswith(base) and got == model
+
+
+def test_model_override(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("BASETEN_API_KEY", "test-not-a-real-key")
+    _, got = make_client("baseten", model="nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B")
+    assert got == "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B"

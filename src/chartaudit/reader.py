@@ -1,6 +1,7 @@
 """Read a chart screenshot into a ChartReading with Muse Spark, through an OpenAI-compatible API.
 
-Providers: "meta" (Muse Spark 1.3, closed, Meta Model API) and "baseten" (Muse Spark Open, open weights).
+Providers: "meta" (Muse Spark 1.3, closed, Meta Model API), "baseten" (Muse Spark Open and other open-weights
+models), "openai" and "anthropic" (Claude through its OpenAI-compatible endpoint), for side-by-side comparison.
 """
 import base64
 import json
@@ -17,9 +18,13 @@ from chartaudit.schema import ChartReading
 DEFAULT_BASE_URL = "https://api.meta.ai/v1"
 DEFAULT_MODEL = "muse-spark-1.3"
 TIMEOUT_S = 60
-BASETEN_BASE_URL = "https://inference.baseten.co/v1"
-BASETEN_MODEL = "meta-models/muse-spark-open-1026"
-PROVIDERS = ("meta", "baseten")
+# provider: (key variable, base URL, default model); the model can be overridden per run
+OTHER_PROVIDERS = {
+    "baseten": ("BASETEN_API_KEY", "https://inference.baseten.co/v1", "meta-models/muse-spark-open-1026"),
+    "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-5.5"),
+    "anthropic": ("ANTHROPIC_API_KEY", "https://api.anthropic.com/v1/", "claude-opus-5-5"),
+}
+PROVIDERS = ("meta", *OTHER_PROVIDERS)
 
 PROMPT = """You are reading a trading chart screenshot. Return JSON only, with:
 - ticker
@@ -51,18 +56,18 @@ def parse_reading(text: str) -> ChartReading:
         raise ReadError(f"invalid chart JSON: {e}") from e
 
 
-def make_client(provider: str = "meta") -> tuple[OpenAI, str]:
+def make_client(provider: str = "meta", model: str | None = None) -> tuple[OpenAI, str]:
     load_dotenv(find_dotenv(usecwd=True))
     if provider == "meta":
-        key_name, base, model = "MODEL_API_KEY", os.getenv("MODEL_API_BASE_URL") or DEFAULT_BASE_URL, os.getenv("MODEL_API_MODEL") or DEFAULT_MODEL
-    elif provider == "baseten":
-        key_name, base, model = "BASETEN_API_KEY", BASETEN_BASE_URL, os.getenv("BASETEN_MODEL") or BASETEN_MODEL
+        key_name, base, default = "MODEL_API_KEY", os.getenv("MODEL_API_BASE_URL") or DEFAULT_BASE_URL, os.getenv("MODEL_API_MODEL") or DEFAULT_MODEL
+    elif provider in OTHER_PROVIDERS:
+        key_name, base, default = OTHER_PROVIDERS[provider]
     else:
         raise ReadError(f"unknown provider {provider!r}; use one of {', '.join(PROVIDERS)}")
     key = os.getenv(key_name, "")
     if not key:
         raise ReadError(f"{key_name} not set (copy .env.example to .env and add your key)")
-    return OpenAI(api_key=key, base_url=base, timeout=TIMEOUT_S), model
+    return OpenAI(api_key=key, base_url=base, timeout=TIMEOUT_S), model or default
 
 
 def read_chart(image_path: Path, client: OpenAI, model: str) -> tuple[ChartReading, str]:
