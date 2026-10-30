@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from chartaudit.audit import HORIZON, pivot_levels, random_levels, score_box, score_level
-from chartaudit.prices import fetch_alpha_vantage, get_bars
+from chartaudit.prices import PriceError, fetch_alpha_vantage, get_bars
 from chartaudit.schema import ChartReading
 
 LOOKBACK = 120  # bars a daily chart typically shows
@@ -129,9 +129,18 @@ def main():
     ap.add_argument("--no-fetch", action="store_true", help="use only CSVs already in --prices")
     a = ap.parse_args()
     charts = list(csv.DictReader(a.charts.open()))
-    def polite_fetch(symbol):  # spread live calls out; the free key is rate limited
+    limited = []
+
+    def polite_fetch(symbol):  # spread live calls out; after the daily limit, stop calling
+        if limited:
+            raise PriceError("daily fetch limit reached; rerun tomorrow to fill this ticker")
         time.sleep(2)
-        return fetch_alpha_vantage(symbol)
+        try:
+            return fetch_alpha_vantage(symbol)
+        except PriceError as e:
+            if "rate limit" in str(e):
+                limited.append(symbol)
+            raise
 
     fetch_kw = {"fetch": None if a.no_fetch else polite_fetch}
     rows, skipped = audit_charts(

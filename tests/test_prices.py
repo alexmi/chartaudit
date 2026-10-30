@@ -57,3 +57,10 @@ def test_stale_cache_is_refetched_and_merged(tmp_path):
 def test_get_bars_without_cache_or_fetcher_explains(tmp_path):
     with pytest.raises(PriceError, match="no price file"):
         get_bars("ZZZ", tmp_path, fetch=None)
+
+
+def test_error_messages_never_carry_the_key():
+    msg = {"Information": "We have detected your API key as SECRET123 and our standard API rate limit is 25 requests per day."}
+    with pytest.raises(PriceError) as e:
+        from_alpha_vantage(msg, redact="SECRET123")
+    assert "SECRET123" not in str(e.value) and "rate limit" in str(e.value)

@@ -36,10 +36,12 @@ def load_csv(path: Path) -> pd.DataFrame:
     return _clean(df)
 
 
-def from_alpha_vantage(payload: dict) -> pd.DataFrame:
+def from_alpha_vantage(payload: dict, redact: str = "") -> pd.DataFrame:
     series = payload.get("Time Series (Daily)")
     if not series:
         msg = payload.get("Information") or payload.get("Note") or payload.get("Error Message") or "no data"
+        if redact:
+            msg = msg.replace(redact, "<key>")  # Alpha Vantage echoes the key in limit messages
         kind = "rate limit or plan" if ("rate limit" in msg or "premium" in msg) else "error"
         raise PriceError(f"Alpha Vantage {kind}: {msg}")
     df = pd.DataFrame.from_dict(series, orient="index").rename(columns=lambda c: c.split(". ")[1])
@@ -55,7 +57,7 @@ def fetch_alpha_vantage(symbol: str) -> pd.DataFrame:
     # The free tier serves only "compact": the last 100 trading days.
     query = urllib.parse.urlencode({"function": "TIME_SERIES_DAILY", "symbol": symbol, "apikey": key})
     with urllib.request.urlopen(f"{AV_URL}?{query}", timeout=30) as r:
-        return from_alpha_vantage(json.load(r))
+        return from_alpha_vantage(json.load(r), redact=key)
 
 
 def get_bars(
