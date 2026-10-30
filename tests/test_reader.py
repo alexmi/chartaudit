@@ -141,3 +141,9 @@ def test_prompt_asks_for_estimates_and_the_printed_date():
     assert '"estimated": true' in PROMPT and "printed" in PROMPT
     reading = parse_reading('{"drawings": [{"type": "zone", "top": "105", "bottom": 103, "estimated": "true"}]}')
     assert reading.drawings[0].estimated is True
+
+
+def test_prices_with_k_and_m_suffixes_are_read():
+    reading = parse_reading('{"drawings": [{"type": "zone", "top": "90.5K", "bottom": "86.5k"}, {"type": "horizontal_line", "price": "1.2M"}]}')
+    assert (reading.drawings[0].top, reading.drawings[0].bottom) == (90500.0, 86500.0)
+    assert reading.drawings[1].price == 1200000.0

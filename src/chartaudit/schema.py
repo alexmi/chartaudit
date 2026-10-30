@@ -11,10 +11,16 @@ DrawingType = Literal["position_box", "horizontal_line", "zone", "trendline", "o
 PRICE_KEYS = ("entry", "stop", "target", "price", "top", "bottom")
 
 
+SUFFIX = {"k": 1e3, "m": 1e6, "b": 1e9}
+
+
 def _to_float(v):
     if isinstance(v, str):
-        v = v.replace(",", "").strip()
-        return float(v) if v else None
+        v = v.replace(",", "").replace("$", "").strip()
+        if not v:
+            return None
+        mult = SUFFIX.get(v[-1].lower())
+        return float(v[:-1]) * mult if mult else float(v)
     return v
 
 
