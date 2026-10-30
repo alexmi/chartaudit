@@ -94,3 +94,25 @@ def test_client_has_timeout(monkeypatch, tmp_path):
     monkeypatch.setenv("MODEL_API_KEY", "test-not-a-real-key")
     client, _ = make_client()
     assert client.timeout == 60
+
+
+def test_baseten_provider_uses_its_own_key_url_and_model(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("BASETEN_API_KEY", "test-not-a-real-key")
+    client, model = make_client("baseten")
+    assert str(client.base_url).startswith("https://inference.baseten.co/v1")
+    assert model == "meta-models/muse-spark-open-1026"
+
+
+def test_baseten_provider_needs_its_key(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MODEL_API_KEY", "test-not-a-real-key")
+    monkeypatch.setenv("BASETEN_API_KEY", "")
+    with pytest.raises(ReadError, match="BASETEN_API_KEY"):
+        make_client("baseten")
+
+
+def test_unknown_provider_raises(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ReadError, match="unknown provider"):
+        make_client("nope")

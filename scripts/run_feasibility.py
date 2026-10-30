@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from chartaudit.extraction import score_reading
-from chartaudit.reader import PROMPT, make_client, read_chart
+from chartaudit.reader import PROMPT, PROVIDERS, make_client, read_chart
 from chartaudit.schema import ChartReading
 from chartaudit.synth import SynthSpec, render
 
@@ -105,9 +105,9 @@ def _summary(rows: list[dict]) -> str:
 
 def run(
     n_synthetic: int, private_dir: Path | None, out_dir: Path, reader=read_chart, client=None,
-    delay_s: float = 0.0, cache_path: Path | None = None,
+    delay_s: float = 0.0, cache_path: Path | None = None, provider: str = "meta",
 ) -> Path:
-    client, model = client or make_client()
+    client, model = client or make_client(provider)
     out_dir.mkdir(parents=True, exist_ok=True)
     jobs = [(*render(s, out_dir / "synthetic"), "synthetic") for s in synthetic_specs(n_synthetic)]
     if private_dir:
@@ -141,7 +141,8 @@ if __name__ == "__main__":
     ap.add_argument("--private", type=Path)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--delay", type=float, default=1.0)
+    ap.add_argument("--provider", choices=PROVIDERS, default="meta")
     ap.add_argument("--cache", type=Path, default=Path("runs/cache.jsonl"), help="reuse earlier reads; 'none' to disable")
     a = ap.parse_args()
-    out = run(a.synthetic, a.private, a.out, delay_s=a.delay, cache_path=None if str(a.cache) == "none" else a.cache)
+    out = run(a.synthetic, a.private, a.out, delay_s=a.delay, cache_path=None if str(a.cache) == "none" else a.cache, provider=a.provider)
     print((out / "summary.md").read_text())
