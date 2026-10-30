@@ -5,7 +5,8 @@
 
 charts.csv gives the truth the model can't read reliably: id (image file stem), ticker, asof
 (the chart's date, YYYY-MM-DD). Baselines on the same visible bars: pivot levels (one per
-trader level) and random levels (random_per_level per trader level).
+trader level) and random levels (random_per_level per trader level). Zones get the same
+baselines as bands of the trader zone's width: centred on a pivot, or placed at random.
 """
 import argparse
 import csv
@@ -14,7 +15,7 @@ import math
 import time
 from pathlib import Path
 
-from chartaudit.audit import HORIZON, pivot_levels, random_levels, score_box, score_level
+from chartaudit.audit import HORIZON, pivot_levels, random_levels, random_zones, score_box, score_level, score_zone
 from chartaudit.prices import PriceError, fetch_alpha_vantage, get_bars
 from chartaudit.schema import ChartReading
 
@@ -52,6 +53,17 @@ def audit_charts(readings, charts, bars_for, horizon=HORIZON, lookback=LOOKBACK,
         for source, prices in sources:
             for p in prices:
                 rows.append(base | {"source": source, "kind": "level", "price": p} | score_level(window, p, c["asof"], horizon))
+        for i, d in enumerate(z for z in reading.drawings if z.type == "zone" and None not in (z.top, z.bottom)):
+            top, bottom = max(d.top, d.bottom), min(d.top, d.bottom)
+            w = top - bottom
+            bands = [("trader", [(top, bottom)])]
+            pivots = pivot_levels(visible, n=i + 1)
+            if len(pivots) > i:
+                bands.append(("pivot", [(pivots[i] + w / 2, pivots[i] - w / 2)]))
+            bands.append(("random", random_zones(visible, n=random_per_level, width=w, seed=seed + i)))
+            for source, zs in bands:
+                for t, b in zs:
+                    rows.append(base | {"source": source, "kind": "zone", "top": t, "bottom": b} | score_zone(window, t, b, c["asof"], horizon))
         for d in reading.drawings:
             if d.type == "position_box" and None not in (d.entry, d.stop, d.target):
                 box = {"entry": d.entry, "stop": d.stop, "target": d.target}
@@ -76,20 +88,21 @@ def _rate(k, n):
     return f"{k / n:.0%}", f"{lo:.0%} to {hi:.0%}"
 
 
-def summarize(rows, skipped) -> str:
-    levels = [r for r in rows if r["kind"] == "level"]
-    out = [
-        "# Audit", "",
-        "Hold rate = held / (held + broke), over levels price reached after the chart.", "",
-        "| source | levels | held | broke | hold rate | 95% CI | untested or pending |",
-        "|---|---|---|---|---|---|---|",
-    ]
+def _hold_table(rows, kind: str, noun: str) -> list[str]:
+    out = [f"| source | {noun} | held | broke | hold rate | 95% CI | untested, pending or inside |", "|---|---|---|---|---|---|---|"]
     for src in ("trader", "pivot", "random"):
-        ls = [r for r in levels if r["source"] == src]
+        ls = [r for r in rows if r["kind"] == kind and r["source"] == src]
         held = sum(r["outcome"] == "held" for r in ls)
         broke = sum(r["outcome"] == "broke" for r in ls)
         rate, ci = _rate(held, held + broke)
         out.append(f"| {src} | {len(ls)} | {held} | {broke} | {rate} | {ci} | {len(ls) - held - broke} |")
+    return out
+
+
+def summarize(rows, skipped) -> str:
+    levels = [r for r in rows if r["kind"] == "level"]
+    out = ["# Audit", "", "Hold rate = held / (held + broke), over lines and zones price reached after the chart.", "",
+           "**Levels**", "", *_hold_table(rows, "level", "levels")]
     out += ["", "**Trader levels by touches before the chart**", "",
             "| touches | tested | held | hold rate | 95% CI |", "|---|---|---|---|---|"]
     trader = [r for r in levels if r["source"] == "trader" and r["outcome"] in ("held", "broke")]
@@ -98,6 +111,8 @@ def summarize(rows, skipped) -> str:
         held = sum(r["outcome"] == "held" for r in b)
         rate, ci = _rate(held, len(b))
         out.append(f"| {name} | {len(b)} | {held} | {rate} | {ci} |")
+    if any(r["kind"] == "zone" for r in rows):
+        out += ["", "**Zones**", "", *_hold_table(rows, "zone", "zones")]
     boxes = [r for r in rows if r["kind"] == "box"]
     count = {o: sum(r["outcome"] == o for r in boxes) for o in ("win", "loss", "open", "not_triggered", "invalid")}
     rs = [r["r"] for r in boxes if r["outcome"] in ("win", "loss")]

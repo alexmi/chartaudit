@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from chartaudit.audit import atr, pivot_levels, random_levels, score_box, score_level, touches
+from chartaudit.audit import atr, pivot_levels, random_levels, random_zones, score_box, score_level, score_zone, touches
 
 
 def bars(rows, start="2026-01-05"):
@@ -108,3 +108,47 @@ def test_baselines_come_only_from_bars_up_to_the_chart():
     r = random_levels(before, n=50, seed=1)
     assert len(r) == 50 and min(r) >= 109 and max(r) <= 125
     assert random_levels(before, n=5, seed=1) == random_levels(before, n=5, seed=1)
+
+
+def test_demand_zone_that_holds():
+    rows = flat(40)
+    rows[12] = (110, 111, 101.5, 109)  # dips into the zone before the chart
+    rows[34] = (110, 111, 100.5, 107)  # enters the zone after, closes above it
+    b = bars(rows)
+    s = score_zone(b, top=102.0, bottom=100.0, asof=b.index[29], horizon=10, tol_atr=0.25)
+    assert s["role"] == "support" and s["touches_before"] == 1
+    assert s["outcome"] == "held" and s["holds"] == 1
+
+
+def test_supply_zone_breaks_on_close_above_its_top():
+    rows = flat(40, price=100.0)
+    rows[33] = (100, 112, 100, 111)  # closes well above the 108 top
+    b = bars(rows)
+    s = score_zone(b, top=108.0, bottom=106.0, asof=b.index[29], horizon=10, tol_atr=0.25)
+    assert s["role"] == "resistance" and s["outcome"] == "broke" and s["bars_to_break"] == 4
+
+
+def test_close_inside_the_zone_is_not_a_break():
+    rows = flat(40)
+    rows[33] = (110, 111, 100.5, 101.0)  # closes inside the 100 to 102 zone
+    b = bars(rows)
+    s = score_zone(b, top=102.0, bottom=100.0, asof=b.index[29], horizon=10, tol_atr=0.25)
+    assert s["outcome"] == "held"
+
+
+def test_price_inside_the_zone_at_the_chart_date_is_not_scored():
+    b = bars(flat(40, price=101.0))
+    s = score_zone(b, top=102.0, bottom=100.0, asof=b.index[29], horizon=10)
+    assert s["role"] == "inside" and s["outcome"] == "inside"
+
+
+def test_zone_given_upside_down_is_normalized():
+    b = bars(flat(40))
+    assert score_zone(b, top=100.0, bottom=102.0, asof=b.index[29])["role"] == "support"
+
+
+def test_random_zones_keep_the_width_and_stay_in_range():
+    b = bars(flat(40))
+    zs = random_zones(b, n=20, width=2.0, seed=1)
+    assert len(zs) == 20 and all(abs((t - lo) - 2.0) < 1e-9 for t, lo in zs)
+    assert all(b.low.min() <= lo and t <= b.high.max() for t, lo in zs)

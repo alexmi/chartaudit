@@ -59,3 +59,24 @@ def test_summary_reports_hold_rate_by_source_and_touch_bucket():
     assert "| 3+ | 1 | 1 | 100% |" in text
     assert "Boxes: 1 win, 0 loss" in text
     assert "X: no data" in text
+
+
+def test_zones_are_scored_beside_same_width_baselines():
+    charts = [{"id": "A1", "ticker": "AAA", "asof": "2026-03-02"}]
+    rows, _ = audit_charts({"A1": READING}, charts, fake_bars, horizon=20, lookback=60, random_per_level=5, seed=0)
+    zones = [r for r in rows if r["kind"] == "zone"]
+    trader = [r for r in zones if r["source"] == "trader"]
+    assert len(trader) == 1 and (trader[0]["top"], trader[0]["bottom"]) == (105, 103)
+    assert len([r for r in zones if r["source"] == "random"]) == 5
+    assert len([r for r in zones if r["source"] == "pivot"]) == 1
+    assert all(abs((r["top"] - r["bottom"]) - 2) < 1e-9 for r in zones)
+
+
+def test_summary_has_a_zone_table():
+    rows = [
+        {"source": "trader", "kind": "zone", "outcome": "held", "touches_before": 2},
+        {"source": "random", "kind": "zone", "outcome": "broke", "touches_before": 0},
+        {"source": "trader", "kind": "zone", "outcome": "inside", "touches_before": None},
+    ]
+    text = summarize(rows, skipped=[])
+    assert "**Zones**" in text and "| trader | 2 | 1 | 0 | 100% |" in text

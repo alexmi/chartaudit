@@ -6,6 +6,7 @@ date: bars up to and including it are what the trader could see; only later bars
 A touch is a bar whose range comes within `tol` of the level (tol = tol_atr x ATR, so it
 scales with volatility). Touching bars closer than `min_gap` bars to the previous touch
 are one visit. A level breaks when a bar closes through it by more than `tol`.
+A zone is a band: a touch is a bar entering it, and it breaks on a close beyond its far edge.
 """
 import numpy as np
 import pandas as pd
@@ -22,9 +23,10 @@ def atr(bars: pd.DataFrame, n: int = ATR_BARS) -> float:
     return float(tr.iloc[-n:].mean())
 
 
-def touches(bars: pd.DataFrame, price: float, tol: float, min_gap: int = MIN_GAP) -> list[int]:
-    """Positions of the first bar of each visit to the level."""
-    hit = np.flatnonzero((bars.low.to_numpy() - tol <= price) & (bars.high.to_numpy() + tol >= price))
+def touches(bars: pd.DataFrame, price: float, tol: float, min_gap: int = MIN_GAP, top: float | None = None) -> list[int]:
+    """Positions of the first bar of each visit to the level, or to the band price..top."""
+    top = price if top is None else top
+    hit = np.flatnonzero((bars.low.to_numpy() - tol <= top) & (bars.high.to_numpy() + tol >= price))
     out, last = [], None
     for i in hit:
         if last is None or i - last >= min_gap:
@@ -59,6 +61,36 @@ def score_level(
         out["bars_to_break"] = k + 1
         after = after.iloc[:k]
     out["holds"] = len(touches(after, price, tol, min_gap))
+    outcome = "broke" if out["bars_to_break"] else ("held" if out["holds"] else "untested")
+    return out | {"outcome": outcome}
+
+
+def score_zone(
+    bars: pd.DataFrame, top: float, bottom: float, asof, horizon: int = HORIZON, tol_atr: float = TOL_ATR, min_gap: int = MIN_GAP
+) -> dict:
+    """A demand zone below price (support) or supply zone above it (resistance); not scored if price is inside."""
+    bottom, top = sorted((bottom, top))
+    before, after = _split(bars, asof, horizon)
+    tol = tol_atr * atr(before)
+    last = before.close.iloc[-1]
+    if bottom <= last <= top:
+        return {"role": "inside", "touches_before": None, "holds": 0, "bars_to_break": None, "bars_seen": len(after), "outcome": "inside"}
+    support = last > top
+    out = {
+        "role": "support" if support else "resistance",
+        "touches_before": len(touches(before, bottom, tol, min_gap, top=top)),
+        "holds": 0,
+        "bars_to_break": None,
+        "bars_seen": len(after),
+    }
+    if after.empty:
+        return out | {"outcome": "pending"}
+    broke = (after.close < bottom - tol) if support else (after.close > top + tol)
+    if broke.any():
+        k = int(np.argmax(broke.to_numpy()))
+        out["bars_to_break"] = k + 1
+        after = after.iloc[:k]
+    out["holds"] = len(touches(after, bottom, tol, min_gap, top=top))
     outcome = "broke" if out["bars_to_break"] else ("held" if out["holds"] else "untested")
     return out | {"outcome": outcome}
 
@@ -109,3 +141,10 @@ def random_levels(before: pd.DataFrame, n: int, seed: int) -> list[float]:
     """Levels drawn uniformly across the visible price range."""
     rng = np.random.default_rng(seed)
     return [float(x) for x in rng.uniform(before.low.min(), before.high.max(), n)]
+
+
+def random_zones(before: pd.DataFrame, n: int, width: float, seed: int) -> list[tuple[float, float]]:
+    """(top, bottom) bands of the given width placed uniformly across the visible price range."""
+    rng = np.random.default_rng(seed)
+    lo, hi = before.low.min(), before.high.max() - width
+    return [(float(b + width), float(b)) for b in rng.uniform(lo, max(lo, hi), n)]
