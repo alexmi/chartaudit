@@ -88,7 +88,8 @@ def _summary(rows: list[dict]) -> str:
         lines += [
             f"**Synthetic:** {ticks_ok} of {len(syn)} charts with every axis label right; "
             f"drawn levels within one tick on {within} of {total} prices; worst error {worst} ticks.",
-            f"Drawings found: {found} of {drawn}.",
+            f"Drawings found: {found} of {drawn}. Prices within 1%: {sum(r['score'].get('within_one_pct', 0) for r in syn)} of {total}; "
+            f"{sum(r['score'].get('estimated_prices', 0) for r in syn)} were estimated from the axis.",
             "",
         ]
     if real:

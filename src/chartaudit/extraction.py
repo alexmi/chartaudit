@@ -84,12 +84,13 @@ def _match(truth: list[Drawing], got: list[Drawing]) -> list[tuple[Drawing, Draw
 
 def score_reading(truth: ChartReading, got: ChartReading, tick: float = 0.01) -> dict:
     matched = _match(truth.drawings, got.drawings)
-    errs = [
-        abs(getattr(t, f) - getattr(g, f)) / tick
+    pairs = [
+        (getattr(t, f), getattr(g, f), bool(g.estimated))
         for t, g in matched
         for f in PRICE_FIELDS.get(t.type, ())
         if getattr(t, f) is not None and getattr(g, f) is not None
     ]
+    errs = [abs(tv - gv) / tick for tv, gv, _ in pairs]
     return {
         "ticker_ok": _ticker(truth.ticker) is not None and _ticker(truth.ticker) == _ticker(got.ticker),
         "timeframe_ok": timeframe_equal(truth.timeframe, got.timeframe),
@@ -102,5 +103,7 @@ def score_reading(truth: ChartReading, got: ChartReading, tick: float = 0.01) ->
         "extra": len(got.drawings) - len(matched),
         "worst_err_ticks": max(errs) if errs else None,
         "within_one_tick": sum(e <= 1 + 1e-9 for e in errs),
+        "within_one_pct": sum(abs(tv - gv) <= 0.01 * abs(tv) for tv, gv, _ in pairs),
+        "estimated_prices": sum(est for _, _, est in pairs),
         "prices_total": sum(getattr(d, f) is not None for d in truth.drawings for f in PRICE_FIELDS.get(d.type, ())),
     }

@@ -93,3 +93,12 @@ def test_more_ticker_and_timeframe_forms():
     for a, b in [("1D", "1 day"), ("4h", "4 hours"), ("1W", "1 week"), ("1D", "D1"), ("5h", "5h (300m)")]:
         assert timeframe_equal(a, b), (a, b)
     assert not timeframe_equal("1M", "1m")
+
+
+def test_estimated_flag_is_kept_and_counted():
+    truth = ChartReading(drawings=[Drawing(type="position_box", entry=100.0, stop=95.0, target=110.0)])
+    got = ChartReading(drawings=[Drawing(type="position_box", entry=100.3, stop=95.2, target=109.5, estimated=True)])
+    s = score_reading(truth, got)
+    assert got.drawings[0].estimated is True
+    assert s["found"] == 1 and s["estimated_prices"] == 3
+    assert s["within_one_pct"] == 3 and s["within_one_tick"] == 0

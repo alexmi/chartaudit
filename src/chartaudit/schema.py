@@ -26,6 +26,12 @@ class Drawing(BaseModel):
     price: float | None = None
     top: float | None = None
     bottom: float | None = None
+    estimated: bool | None = None  # True when the prices were read off the axis, not from a printed label
+
+    @field_validator("estimated", mode="before")
+    @classmethod
+    def _flag(cls, v):
+        return str(v).strip().lower() in ("true", "1", "yes") if isinstance(v, str) else v
 
     @field_validator("type", mode="before")
     @classmethod

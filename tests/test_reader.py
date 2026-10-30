@@ -134,3 +134,10 @@ def test_model_override(monkeypatch, tmp_path):
     monkeypatch.setenv("BASETEN_API_KEY", "test-not-a-real-key")
     _, got = make_client("baseten", model="nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B")
     assert got == "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B"
+
+
+def test_prompt_asks_for_estimates_and_the_printed_date():
+    from chartaudit.reader import PROMPT
+    assert '"estimated": true' in PROMPT and "printed" in PROMPT
+    reading = parse_reading('{"drawings": [{"type": "zone", "top": "105", "bottom": 103, "estimated": "true"}]}')
+    assert reading.drawings[0].estimated is True

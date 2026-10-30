@@ -29,15 +29,17 @@ PROVIDERS = ("meta", *OTHER_PROVIDERS)
 PROMPT = """You are reading a trading chart screenshot. Return JSON only, with:
 - ticker
 - timeframe
-- last_visible_date
-- y_axis_scale: "linear" or "log"
+- last_visible_date: the chart's date as printed on it (often in the top left corner, e.g. 28-Oct-2026); if none is printed, the date of the last candle if it is labeled
+- y_axis_scale: "linear" or "log" (log if equal steps on the axis are unequal price steps, e.g. 10, 20, 40, 80)
 - y_axis_ticks: every price label on the right axis, exactly as printed, top to bottom
 - drawings: a list of objects, each with
     type: position_box, horizontal_line, zone, trendline or other
     position_box: entry, stop, target prices
     horizontal_line: price
     zone: top and bottom prices
-If a value is not readable, use null. Do not guess."""
+    estimated: false if every price you give for this drawing is printed on the chart; true if you read any of them off the price axis
+If a drawing's price is printed on the chart, copy it exactly. If it is not printed, estimate it from the price axis and set "estimated": true.
+Use null only when a value cannot be read or estimated at all (for example no readable price axis)."""
 
 
 class ReadError(Exception):
