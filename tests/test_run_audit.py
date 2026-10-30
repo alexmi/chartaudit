@@ -80,3 +80,9 @@ def test_summary_has_a_zone_table():
     ]
     text = summarize(rows, skipped=[])
     assert "**Zones**" in text and "| trader | 2 | 1 | 0 | 100% |" in text
+
+
+def test_chart_whose_axis_misses_real_prices_is_skipped():
+    bad = READING.model_copy(update={"y_axis_ticks": ["30", "25", "20", "15"]})  # real prices are 100 to 109
+    rows, skipped = audit_charts({"A1": bad}, [{"id": "A1", "ticker": "AAA", "asof": "2026-03-02"}], fake_bars)
+    assert rows == [] and "axis check" in skipped[0]["reason"]

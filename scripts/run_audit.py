@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 from chartaudit.audit import HORIZON, pivot_levels, random_levels, random_zones, score_box, score_level, score_zone
+from chartaudit.calibrate import check_axis
 from chartaudit.prices import PriceError, fetch_alpha_vantage, get_bars
 from chartaudit.schema import ChartReading
 
@@ -39,6 +40,11 @@ def audit_charts(readings, charts, bars_for, horizon=HORIZON, lookback=LOOKBACK,
         if end == 0:
             skipped.append({"id": c["id"], "reason": "no price history before the chart date"})
             continue
+        if reading.y_axis_ticks:  # a misread axis would misplace every drawing, so set the chart aside
+            check = check_axis(reading, bars, c["asof"])
+            if not check["ok"]:
+                skipped.append({"id": c["id"], "reason": "axis check: " + "; ".join(check["flags"])})
+                continue
         window = bars.iloc[max(0, end - lookback) :]
         visible = window.loc[: c["asof"]]
         base = {"chart": c["id"], "ticker": c["ticker"], "asof": c["asof"]}
