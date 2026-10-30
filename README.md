@@ -17,3 +17,13 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 cp .env.example .env   # then add your Meta Model API key
 .venv/bin/pytest
 ```
+
+## Audit: scoring drawn lines on what happened next
+
+`scripts/run_audit.py` takes chart readings plus a `charts.csv` (image id, ticker, chart date) and scores each drawing only on bars after the chart date:
+
+* **Levels:** a touch is a bar within 0.25 ATR of the line; touches under 5 bars apart are one visit. A level *breaks* when a bar closes through it by more than that tolerance, and *holds* when price touches it without breaking, within 20 bars. Touches before the chart date are counted too, to test whether more touches mean a stronger level.
+* **Position boxes:** fill on the first bar that trades through entry; win if the target comes before the stop within 20 bars; stop and target in the same bar count as a loss.
+* **Baselines:** on the same visible bars, swing pivot levels (one per drawn level) and random levels (five per drawn level). Hold rates carry 95% Wilson intervals.
+
+Daily prices come from CSV files in `data/prices/` (any Date, Open, High, Low, Close export works) or, to fill gaps, the Alpha Vantage API with `ALPHAVANTAGE_API_KEY` in `.env`. Fetched prices are not committed.
