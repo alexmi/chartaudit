@@ -1,11 +1,12 @@
 """Daily price history for the audit: local CSV files first, Alpha Vantage only to fill gaps.
 
 Any CSV with Date, Open, High, Low, Close columns works (a broker export, for example).
-Drop it in the price folder as <TICKER>.csv. Fetched history is saved there too, so each
-ticker is fetched once (the free Alpha Vantage key allows about 25 calls a day).
+Drop it in the price folder as <TICKER>.csv. Fetched history is saved there too and
+refreshed at most once a day (the free Alpha Vantage key allows about 25 calls a day).
 """
 import json
 import os
+import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
@@ -51,23 +52,30 @@ def fetch_alpha_vantage(symbol: str) -> pd.DataFrame:
     key = os.getenv("ALPHAVANTAGE_API_KEY", "")
     if not key:
         raise PriceError("ALPHAVANTAGE_API_KEY not set in .env")
-    query = urllib.parse.urlencode(
-        {"function": "TIME_SERIES_DAILY", "symbol": symbol, "outputsize": "full", "apikey": key}
-    )
+    # The free tier serves only "compact": the last 100 trading days.
+    query = urllib.parse.urlencode({"function": "TIME_SERIES_DAILY", "symbol": symbol, "apikey": key})
     with urllib.request.urlopen(f"{AV_URL}?{query}", timeout=30) as r:
         return from_alpha_vantage(json.load(r))
 
 
 def get_bars(
-    ticker: str, price_dir: Path, fetch: Callable[[str], pd.DataFrame] | None = fetch_alpha_vantage
+    ticker: str,
+    price_dir: Path,
+    fetch: Callable[[str], pd.DataFrame] | None = fetch_alpha_vantage,
+    max_age_s: float = 86400,
 ) -> pd.DataFrame:
+    """Cached bars; a file older than max_age_s is refetched and merged, so history keeps growing."""
     symbol = ticker.strip().upper()
     path = Path(price_dir) / f"{symbol}.csv"
-    if path.exists():
+    fresh = path.exists() and time.time() - path.stat().st_mtime < max_age_s
+    if path.exists() and (fresh or fetch is None):
         return load_csv(path)
     if fetch is None:
         raise PriceError(f"no price file {path} and fetching is off")
     bars = fetch(symbol)
+    if path.exists():
+        bars = pd.concat([load_csv(path), bars])
+        bars = bars[~bars.index.duplicated(keep="last")].sort_index()
     path.parent.mkdir(parents=True, exist_ok=True)
     bars.to_csv(path)
     return load_csv(path)
