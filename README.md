@@ -24,6 +24,32 @@ cp .env.example .env   # then add your Meta Model API key
 
 * **Levels:** a touch is a bar within 0.25 ATR of the line; touches under 5 bars apart are one visit. A level *breaks* when a bar closes through it by more than that tolerance, and *holds* when price touches it without breaking, within 20 bars. Touches before the chart date are counted too, to test whether more touches mean a stronger level.
 * **Position boxes:** fill on the first bar that trades through entry; win if the target comes before the stop within 20 bars; stop and target in the same bar count as a loss.
+* **Zones (supply and demand):** a touch is a bar entering the band; a zone breaks on a close beyond its far edge, and a close inside the zone is not a break. A zone with price inside it on the chart date is not scored. Baselines are zones of the same width, centred on a swing pivot or placed at random.
 * **Baselines:** on the same visible bars, swing pivot levels (one per drawn level) and random levels (five per drawn level). Hold rates carry 95% Wilson intervals.
+* **Axis check:** before scoring, the read price axis must be self-consistent and the real closing price on the chart date must sit on it, and every drawn price must be on the axis. A chart that fails is set aside with the reason instead of being scored, because a misread axis would misplace every line.
 
 Daily prices come from CSV files in `data/prices/` (any Date, Open, High, Low, Close export works) or, to fill gaps, the Alpha Vantage API with `ALPHAVANTAGE_API_KEY` in `.env`. Fetched prices are not committed.
+
+## Trader calls from transcripts
+
+`chartaudit.calls` sends a newsletter transcript to Muse Spark and gets back each specific call (ticker, buy, sell or watch, level or zone, timeframe, the exact quote) and each general rule the speaker states. On two newsletter transcripts it found 17 rules the audit can test, for example "the first test of supply is generally sold" and "broken resistance is backtested". Most spoken calls point at a chart rather than naming a price, so they are joined to the chart readings.
+
+## Model comparison (Oct 30, 2026)
+
+The same 20 synthetic charts (known answers; 15 with a position box, 5 on a log scale), the same prompt and the same scorer:
+
+| | Muse Spark 1.3 (Meta API) | Muse Spark Open (open weights, Baseten) | Claude Opus 5.5 | Claude Fable 5.1 |
+|---|---|---|---|---|
+| Every axis label right | 7 of 20 | 7 of 20 | 11 of 20 | 6 of 20 |
+| Labeled lines read exactly | 45 of 45 | 45 of 45 | 45 of 45 | 45 of 45 |
+| Log scale recognized | 0 of 5 | 0 of 5 | 5 of 5 | 0 of 5 |
+| Unlabeled box prices given | 3, all wrong | 3, all wrong | none (null) | none (null) |
+| Worst price error | 73 ticks | 58 ticks | 0 ticks | 0 ticks |
+
+Notes:
+* That prompt said "do not guess", so no model could score the box edges, which carry no printed price. The prompt now asks for an estimate from the axis, flagged `"estimated": true`, and the scorer reports prices within 1% as well as within one tick.
+* Muse Spark Open read charts as well as Muse Spark 1.3 on this set, at about a minute per chart.
+* The Claude rows ran through Claude Code rather than the API at temperature 0; they are a reference point, not part of the pipeline, which runs on Meta models.
+* 20 charts is a small set; the next comparison is on real charts.
+
+Reproduce: `scripts/run_feasibility.py --synthetic 20 --provider meta|baseten|openai|anthropic [--model ID]`.
