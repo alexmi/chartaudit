@@ -143,6 +143,20 @@ def random_levels(before: pd.DataFrame, n: int, seed: int) -> list[float]:
     return [float(x) for x in rng.uniform(before.low.min(), before.high.max(), n)]
 
 
+def matched_random_levels(
+    before: pd.DataFrame, levels: list[float], per_level: int, seed: int, spread: float = 0.25
+) -> list[float]:
+    """per_level random levels for each trader level, on the same side of the last close and at a
+    distance within +/- spread of the trader's, so trader and chimp face the same odds of being reached."""
+    rng = np.random.default_rng(seed)
+    close = float(before.close.iloc[-1])
+    out = []
+    for level in levels:
+        d = level - close
+        out += [close + d * (1 + u) for u in rng.uniform(-spread, spread, per_level)]
+    return [float(x) for x in out]
+
+
 def random_zones(before: pd.DataFrame, n: int, width: float, seed: int) -> list[tuple[float, float]]:
     """(top, bottom) bands of the given width placed uniformly across the visible price range."""
     rng = np.random.default_rng(seed)

@@ -123,3 +123,10 @@ def test_private_subfolders_are_read(tmp_path):
 
     run(0, priv, tmp_path / "out", reader=rec, client=(None, "m"))
     assert sorted(seen) == ["BP_NVDA.png", "G1_X.png"]
+
+
+def test_seed_offset_gives_fresh_charts_with_the_same_variants():
+    base, fresh = synthetic_specs(5), synthetic_specs(5, seed_offset=100)
+    assert [s.seed for s in fresh] == [101, 102, 103, 104, 105]
+    assert not {s.seed for s in base} & {s.seed for s in fresh}
+    assert [(s.box, s.log_scale) for s in base] == [(s.box, s.log_scale) for s in fresh]

@@ -86,3 +86,22 @@ def test_chart_whose_axis_misses_real_prices_is_skipped():
     bad = READING.model_copy(update={"y_axis_ticks": ["30", "25", "20", "15"]})  # real prices are 100 to 109
     rows, skipped = audit_charts({"A1": bad}, [{"id": "A1", "ticker": "AAA", "asof": "2026-03-02"}], fake_bars)
     assert rows == [] and "axis check" in skipped[0]["reason"]
+
+
+def test_matched_random_levels_sit_on_the_trader_side():
+    charts = [{"id": "A1", "ticker": "AAA", "asof": "2026-03-02"}]
+    rows, _ = audit_charts({"A1": READING}, charts, fake_bars, horizon=20, lookback=60, random_per_level=5, seed=0)
+    matched = [r for r in rows if r["source"] == "matched" and r["kind"] == "level"]
+    assert len(matched) == 5
+    close = fake_bars("AAA").loc[:"2026-03-02"].close.iloc[-1]
+    assert all((r["price"] - close) * (100.0 - close) > 0 for r in matched)
+
+
+def test_summary_lists_the_matched_baseline():
+    rows = [{"source": "matched", "kind": "level", "outcome": "held", "touches_before": 0}]
+    assert "| matched |" in summarize(rows, [])
+
+
+def test_summary_skips_baselines_with_no_rows():
+    rows = [{"source": "trader", "kind": "zone", "outcome": "held", "touches_before": 2}]
+    assert "| matched |" not in summarize(rows, [])

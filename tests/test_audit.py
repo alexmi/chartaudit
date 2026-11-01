@@ -152,3 +152,16 @@ def test_random_zones_keep_the_width_and_stay_in_range():
     zs = random_zones(b, n=20, width=2.0, seed=1)
     assert len(zs) == 20 and all(abs((t - lo) - 2.0) < 1e-9 for t, lo in zs)
     assert all(b.low.min() <= lo and t <= b.high.max() for t, lo in zs)
+
+
+def test_matched_random_levels_keep_side_and_distance():
+    from chartaudit.audit import matched_random_levels
+    before = pd.DataFrame({"open": [100.0] * 5, "high": [101.0] * 5, "low": [99.0] * 5, "close": [100.0] * 5},
+                          index=pd.date_range("2026-01-01", periods=5))
+    levels = [110.0, 92.0]
+    out = matched_random_levels(before, levels, per_level=50, seed=1, spread=0.25)
+    assert len(out) == 100
+    above, below = out[:50], out[50:]
+    assert all(107.5 <= x <= 112.5 for x in above)   # resistance 10 above close: same side, distance within 25%
+    assert all(90.0 <= x <= 94.0 for x in below)     # support 8 below close
+    assert len(set(out)) > 90

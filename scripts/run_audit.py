@@ -5,7 +5,8 @@
 
 charts.csv gives the truth the model can't read reliably: id (image file stem), ticker, asof
 (the chart's date, YYYY-MM-DD). Baselines on the same visible bars: pivot levels (one per
-trader level) and random levels (random_per_level per trader level). Zones get the same
+trader level), random levels (random_per_level per trader level) and matched random levels (the same
+count, on the same side of price as each trader level and at a similar distance). Zones get the same
 baselines as bands of the trader zone's width: centred on a pivot, or placed at random.
 """
 import argparse
@@ -15,7 +16,9 @@ import math
 import time
 from pathlib import Path
 
-from chartaudit.audit import HORIZON, pivot_levels, random_levels, random_zones, score_box, score_level, score_zone
+from chartaudit.audit import (
+    HORIZON, matched_random_levels, pivot_levels, random_levels, random_zones, score_box, score_level, score_zone,
+)
 from chartaudit.calibrate import check_axis
 from chartaudit.prices import PriceError, fetch_alpha_vantage, get_bars
 from chartaudit.schema import ChartReading
@@ -54,6 +57,7 @@ def audit_charts(readings, charts, bars_for, horizon=HORIZON, lookback=LOOKBACK,
         if levels:
             sources += [
                 ("pivot", pivot_levels(visible, n=len(levels))),
+                ("matched", matched_random_levels(visible, levels, per_level=random_per_level, seed=seed)),
                 ("random", random_levels(visible, n=random_per_level * len(levels), seed=seed)),
             ]
         for source, prices in sources:
@@ -96,8 +100,10 @@ def _rate(k, n):
 
 def _hold_table(rows, kind: str, noun: str) -> list[str]:
     out = [f"| source | {noun} | held | broke | hold rate | 95% CI | untested, pending or inside |", "|---|---|---|---|---|---|---|"]
-    for src in ("trader", "pivot", "random"):
+    for src in ("trader", "pivot", "matched", "random"):
         ls = [r for r in rows if r["kind"] == kind and r["source"] == src]
+        if not ls and src != "trader":
+            continue
         held = sum(r["outcome"] == "held" for r in ls)
         broke = sum(r["outcome"] == "broke" for r in ls)
         rate, ci = _rate(held, held + broke)
@@ -107,7 +113,8 @@ def _hold_table(rows, kind: str, noun: str) -> list[str]:
 
 def summarize(rows, skipped) -> str:
     levels = [r for r in rows if r["kind"] == "level"]
-    out = ["# Audit", "", "Hold rate = held / (held + broke), over lines and zones price reached after the chart.", "",
+    out = ["# Audit", "", "Hold rate = held / (held + broke), over lines and zones price reached after the chart. "
+           "matched = random levels on the trader's side of price at a similar distance; random = spread over the chart.", "",
            "**Levels**", "", *_hold_table(rows, "level", "levels")]
     out += ["", "**Trader levels by touches before the chart**", "",
             "| touches | tested | held | hold rate | 95% CI |", "|---|---|---|---|---|"]

@@ -23,8 +23,9 @@ VARIANTS = [
 ROW = re.compile(r"^- \[[ x]\] (\w+) `[^`]+`: \[[^\]]*\]\([^)]+\) \(([^)]+)\)", re.M)
 
 
-def synthetic_specs(n: int) -> list[SynthSpec]:
-    return [SynthSpec(seed=i + 1, **VARIANTS[i % len(VARIANTS)]) for i in range(n)]
+def synthetic_specs(n: int, seed_offset: int = 0) -> list[SynthSpec]:
+    """seed_offset > 0 gives fresh charts (same variants, new price paths) for a held-out test."""
+    return [SynthSpec(seed=seed_offset + i + 1, **VARIANTS[i % len(VARIANTS)]) for i in range(n)]
 
 
 def parse_private_truth(to_save: Path) -> dict[str, ChartReading]:
@@ -107,10 +108,11 @@ def _summary(rows: list[dict]) -> str:
 def run(
     n_synthetic: int, private_dir: Path | None, out_dir: Path, reader=read_chart, client=None,
     delay_s: float = 0.0, cache_path: Path | None = None, provider: str = "meta", model: str | None = None,
+    seed_offset: int = 0,
 ) -> Path:
     client, model = client or make_client(provider, model)
     out_dir.mkdir(parents=True, exist_ok=True)
-    jobs = [(*render(s, out_dir / "synthetic"), "synthetic") for s in synthetic_specs(n_synthetic)]
+    jobs = [(*render(s, out_dir / "synthetic"), "synthetic") for s in synthetic_specs(n_synthetic, seed_offset)]
     if private_dir:
         truths = parse_private_truth(private_dir / "TO_SAVE.md") if (private_dir / "TO_SAVE.md").exists() else {}
         jobs += [(p, truths.get(p.stem.split("_")[0]), "private") for p in sorted(private_dir.rglob("*.png"))]
@@ -139,6 +141,7 @@ def run(
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--synthetic", type=int, default=20)
+    ap.add_argument("--seed-offset", type=int, default=0, help="fresh synthetic charts for a held-out test, e.g. 100")
     ap.add_argument("--private", type=Path)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--delay", type=float, default=1.0)
@@ -146,5 +149,5 @@ if __name__ == "__main__":
     ap.add_argument("--model", help="override the provider's default model")
     ap.add_argument("--cache", type=Path, default=Path("runs/cache.jsonl"), help="reuse earlier reads; 'none' to disable")
     a = ap.parse_args()
-    out = run(a.synthetic, a.private, a.out, delay_s=a.delay, cache_path=None if str(a.cache) == "none" else a.cache, provider=a.provider, model=a.model)
+    out = run(a.synthetic, a.private, a.out, delay_s=a.delay, cache_path=None if str(a.cache) == "none" else a.cache, provider=a.provider, model=a.model, seed_offset=a.seed_offset)
     print((out / "summary.md").read_text())
