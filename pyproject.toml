@@ -14,6 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest"]
+demo = ["gradio==6.28.0", "pillow"]
 
 [build-system]
 requires = ["setuptools>=68"]
