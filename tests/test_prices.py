@@ -64,3 +64,15 @@ def test_error_messages_never_carry_the_key():
     with pytest.raises(PriceError) as e:
         from_alpha_vantage(msg, redact="SECRET123")
     assert "SECRET123" not in str(e.value) and "rate limit" in str(e.value)
+
+
+def test_get_bars_falls_back_to_stale_cache_when_fetch_fails(tmp_path):
+    p = tmp_path / "X.csv"
+    from_alpha_vantage(AV).to_csv(p)
+    os.utime(p, (0, 0))  # older than a day, so a refetch is due
+
+    def fetch(symbol):
+        raise PriceError("Alpha Vantage rate limit or plan: 25 requests per day")
+
+    b = get_bars("x", tmp_path, fetch=fetch)
+    assert b.close.iloc[-1] == 11.5

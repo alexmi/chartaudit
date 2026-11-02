@@ -74,7 +74,12 @@ def get_bars(
         return load_csv(path)
     if fetch is None:
         raise PriceError(f"no price file {path} and fetching is off")
-    bars = fetch(symbol)
+    try:
+        bars = fetch(symbol)
+    except PriceError:
+        if path.exists():  # a stale file beats no file (e.g. after the daily limit)
+            return load_csv(path)
+        raise
     if path.exists():
         bars = pd.concat([load_csv(path), bars])
         bars = bars[~bars.index.duplicated(keep="last")].sort_index()
