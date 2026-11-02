@@ -88,3 +88,63 @@ def test_render_overlay_returns_a_png(bars, asof):
 def test_render_overlay_handles_an_empty_reading():
     png = render_overlay(ChartReading(), None, None)
     assert Image.open(io.BytesIO(png)).format == "PNG"
+
+
+# the page's request handler
+
+from chartaudit.demo import handle_upload  # noqa: E402
+from chartaudit.live import Limits  # noqa: E402
+
+
+def _upload(tmp_path, data=None):
+    p = tmp_path / "up.png"
+    buf = io.BytesIO()
+    Image.new("RGB", (300, 200), "white").save(buf, "PNG")
+    p.write_bytes(data if data is not None else buf.getvalue())
+    return p
+
+
+def _limits(**kw):
+    return Limits(**({"per_visitor": 5, "window_s": 3600, "per_day": 100} | kw))
+
+
+def test_handle_upload_returns_overlay_table_reading_and_notes(tmp_path):
+    overlay, table, reading, notes = handle_upload(
+        str(_upload(tmp_path)), "", "", "v", _read(_reading()), lambda t: BARS, _limits(), today=TODAY)
+    assert Image.open(io.BytesIO(overlay)).format == "PNG"
+    assert table[0]["source"] == "trader" and reading["ticker"] == "TEST"
+
+
+def test_handle_upload_deletes_the_uploaded_file(tmp_path):
+    p = _upload(tmp_path)
+    handle_upload(str(p), "", "", "v", _read(_reading()), lambda t: BARS, _limits(), today=TODAY)
+    assert not p.exists()
+
+
+def test_bad_uploads_do_not_use_the_reading_allowance(tmp_path):
+    lim, calls = _limits(per_day=1), []
+    reader = lambda png: calls.append(1) or _reading()  # noqa: E731
+    *_, notes = handle_upload(str(_upload(tmp_path, b"not an image")), "", "", "v", reader, lambda t: BARS, lim, today=TODAY)
+    assert "not an image" in notes and calls == []
+    handle_upload(str(_upload(tmp_path)), "", "", "v", reader, lambda t: BARS, lim, today=TODAY)
+    assert calls == [1]
+
+
+def test_over_the_limit_the_model_is_not_called(tmp_path):
+    lim, calls = _limits(per_day=0), []
+    reader = lambda png: calls.append(1) or _reading()  # noqa: E731
+    overlay, _, _, notes = handle_upload(str(_upload(tmp_path)), "", "", "v", reader, lambda t: BARS, lim, today=TODAY)
+    assert overlay is None and calls == [] and "allowance" in notes
+
+
+def test_model_failures_show_a_plain_message(tmp_path):
+    def boom(png):
+        raise RuntimeError("401 Unauthorized for key sk-SECRET")
+
+    overlay, _, _, notes = handle_upload(str(_upload(tmp_path)), "", "", "v", boom, lambda t: BARS, _limits(), today=TODAY)
+    assert overlay is None and "SECRET" not in notes and "try again" in notes
+
+
+def test_no_file_asks_for_one():
+    *_, notes = handle_upload(None, "", "", "v", _read(_reading()), lambda t: BARS, _limits())
+    assert "Upload" in notes
