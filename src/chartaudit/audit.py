@@ -11,10 +11,13 @@ A zone is a band: a touch is a bar entering it, and it breaks on a close beyond 
 import numpy as np
 import pandas as pd
 
+from chartaudit.calibrate import check_axis
+
 ATR_BARS = 14
 TOL_ATR = 0.25
 MIN_GAP = 5
 HORIZON = 20
+LOOKBACK = 120  # bars a daily chart typically shows
 
 
 def atr(bars: pd.DataFrame, n: int = ATR_BARS) -> float:
@@ -162,3 +165,57 @@ def random_zones(before: pd.DataFrame, n: int, width: float, seed: int) -> list[
     rng = np.random.default_rng(seed)
     lo, hi = before.low.min(), before.high.max() - width
     return [(float(b + width), float(b)) for b in rng.uniform(lo, max(lo, hi), n)]
+
+
+def audit_charts(readings, charts, bars_for, horizon=HORIZON, lookback=LOOKBACK, random_per_level=5, seed=0):
+    rows, skipped = [], []
+    for c in charts:
+        reading = readings.get(c["id"])
+        if reading is None:
+            skipped.append({"id": c["id"], "reason": "no reading"})
+            continue
+        try:
+            bars = bars_for(c["ticker"])
+        except Exception as e:  # one bad ticker must not stop the audit
+            skipped.append({"id": c["id"], "reason": f"{type(e).__name__}: {e}"})
+            continue
+        end = len(bars.loc[: c["asof"]])
+        if end == 0:
+            skipped.append({"id": c["id"], "reason": "no price history before the chart date"})
+            continue
+        if reading.y_axis_ticks:  # a misread axis would misplace every drawing, so set the chart aside
+            check = check_axis(reading, bars, c["asof"])
+            if not check["ok"]:
+                skipped.append({"id": c["id"], "reason": "axis check: " + "; ".join(check["flags"])})
+                continue
+        window = bars.iloc[max(0, end - lookback) :]
+        visible = window.loc[: c["asof"]]
+        base = {"chart": c["id"], "ticker": c["ticker"], "asof": c["asof"]}
+
+        levels = [d.price for d in reading.drawings if d.type == "horizontal_line" and d.price is not None]
+        sources = [("trader", levels)]
+        if levels:
+            sources += [
+                ("pivot", pivot_levels(visible, n=len(levels))),
+                ("matched", matched_random_levels(visible, levels, per_level=random_per_level, seed=seed)),
+                ("random", random_levels(visible, n=random_per_level * len(levels), seed=seed)),
+            ]
+        for source, prices in sources:
+            for p in prices:
+                rows.append(base | {"source": source, "kind": "level", "price": p} | score_level(window, p, c["asof"], horizon))
+        for i, d in enumerate(z for z in reading.drawings if z.type == "zone" and None not in (z.top, z.bottom)):
+            top, bottom = max(d.top, d.bottom), min(d.top, d.bottom)
+            w = top - bottom
+            bands = [("trader", [(top, bottom)])]
+            pivots = pivot_levels(visible, n=i + 1)
+            if len(pivots) > i:
+                bands.append(("pivot", [(pivots[i] + w / 2, pivots[i] - w / 2)]))
+            bands.append(("random", random_zones(visible, n=random_per_level, width=w, seed=seed + i)))
+            for source, zs in bands:
+                for t, b in zs:
+                    rows.append(base | {"source": source, "kind": "zone", "top": t, "bottom": b} | score_zone(window, t, b, c["asof"], horizon))
+        for d in reading.drawings:
+            if d.type == "position_box" and None not in (d.entry, d.stop, d.target):
+                box = {"entry": d.entry, "stop": d.stop, "target": d.target}
+                rows.append(base | {"source": "trader", "kind": "box"} | box | score_box(window, **box, asof=c["asof"], horizon=horizon))
+    return rows, skipped
