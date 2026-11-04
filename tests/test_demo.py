@@ -121,6 +121,14 @@ def test_handle_upload_deletes_the_uploaded_file(tmp_path):
     assert not p.exists()
 
 
+def test_clicking_again_after_the_upload_was_deleted_asks_for_a_new_upload(tmp_path):
+    p = _upload(tmp_path)
+    handle_upload(str(p), "", "", "v", _read(_reading()), lambda t: BARS, _limits(), today=TODAY)
+    overlay, table, reading, notes = handle_upload(
+        str(p), "", "", "v", _read(_reading()), lambda t: BARS, _limits(), today=TODAY)
+    assert overlay is None and table == [] and "upload the chart again" in notes.lower()
+
+
 def test_bad_uploads_do_not_use_the_reading_allowance(tmp_path):
     lim, calls = _limits(per_day=1), []
     reader = lambda png: calls.append(1) or _reading()  # noqa: E731

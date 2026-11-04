@@ -137,6 +137,8 @@ def handle_upload(path: str | None, ticker: str, asof: str, visitor: str,
         return None, [], None, "Upload a chart screenshot (PNG, JPEG or WebP)."
     try:
         data = Path(path).read_bytes()
+    except FileNotFoundError:  # uploads are deleted after one read; a second click on the same upload lands here
+        return None, [], None, "That upload was already used and deleted. Please upload the chart again."
     finally:
         Path(path).unlink(missing_ok=True)
     try:
