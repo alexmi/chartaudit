@@ -1,0 +1,43 @@
+{
+ "title": "Levels that broke",
+ "ticker": "SYN0131",
+ "asof": "2025-06-18",
+ "reading": {
+  "ticker": "SYN0131",
+  "timeframe": "1D",
+  "last_visible_date": null,
+  "y_axis_scale": "linear",
+  "y_axis_ticks": [
+   "120.00",
+   "117.50",
+   "115.00",
+   "110.00",
+   "107.50",
+   "105.00",
+   "102.50",
+   "100.00"
+  ],
+  "drawings": [
+   {
+    "type": "horizontal_line",
+    "entry": null,
+    "stop": null,
+    "target": null,
+    "price": 112.41,
+    "top": null,
+    "bottom": null,
+    "estimated": false
+   },
+   {
+    "type": "horizontal_line",
+    "entry": null,
+    "stop": null,
+    "target": null,
+    "price": 105.88,
+    "top": null,
+    "bottom": null,
+    "estimated": false
+   }
+  ]
+ }
+}

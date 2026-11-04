@@ -148,3 +148,22 @@ def test_model_failures_show_a_plain_message(tmp_path):
 def test_no_file_asks_for_one():
     *_, notes = handle_upload(None, "", "", "v", _read(_reading()), lambda t: BARS, _limits())
     assert "Upload" in notes
+
+
+def test_box_results_are_described_in_the_notes():
+    from chartaudit.demo import box_notes
+    rows = [{"source": "trader", "kind": "box", "side": "long", "outcome": "win", "r": 2.0, "bars_to_exit": 7},
+            {"source": "trader", "kind": "box", "side": "short", "outcome": "not_triggered", "r": None, "bars_to_exit": None},
+            {"source": "trader", "kind": "level", "outcome": "held"}]
+    assert box_notes(rows) == ["Position box (long): hit the target after 7 bars, +2.0R.",
+                               "Position box (short): entry never reached in the 20 bars after the chart."]
+
+
+def test_overlay_has_a_legend_for_what_was_drawn():
+    from chartaudit.demo import overlay_figure
+    reading = _reading(drawings=[Drawing(type="horizontal_line", price=CLOSE * 0.95), Drawing(type="horizontal_line", price=CLOSE),
+                                 Drawing(type="position_box", entry=CLOSE, stop=CLOSE * 0.97, target=CLOSE * 1.06)])
+    fig = overlay_figure(reading, BARS, ASOF)
+    labels = [t.get_text() for t in fig.axes[0].get_legend().get_texts()]
+    assert labels == ["close", "level read", "box entry", "box stop", "box target"]
+    assert "chart date" not in fig.axes[0].get_title()

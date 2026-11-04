@@ -1,0 +1,42 @@
+{
+ "title": "Levels that held",
+ "ticker": "SYN0189",
+ "asof": "2025-06-18",
+ "reading": {
+  "ticker": "SYN0189",
+  "timeframe": "1D",
+  "last_visible_date": null,
+  "y_axis_scale": "linear",
+  "y_axis_ticks": [
+   "102.00",
+   "99.00",
+   "96.00",
+   "93.00",
+   "90.00",
+   "84.00",
+   "81.00"
+  ],
+  "drawings": [
+   {
+    "type": "horizontal_line",
+    "entry": null,
+    "stop": null,
+    "target": null,
+    "price": 95.05,
+    "top": null,
+    "bottom": null,
+    "estimated": false
+   },
+   {
+    "type": "horizontal_line",
+    "entry": null,
+    "stop": null,
+    "target": null,
+    "price": 86.94,
+    "top": null,
+    "bottom": null,
+    "estimated": false
+   }
+  ]
+ }
+}

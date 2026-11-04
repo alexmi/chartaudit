@@ -119,8 +119,9 @@ def _printed_ticks(fig, ax, covered: list[float]) -> list[str]:
     ]
 
 
-def render(spec: SynthSpec, out_dir: Path) -> tuple[Path, ChartReading]:
-    bars = make_bars(spec.seed, spec.n_bars)
+def render(spec: SynthSpec, out_dir: Path, bars: pd.DataFrame | None = None) -> tuple[Path, ChartReading]:
+    """Draw the chart; pass bars to draw those (e.g. the first part of a longer series, so later bars can score it)."""
+    bars = make_bars(spec.seed, spec.n_bars) if bars is None else bars
     drawings = _truth_drawings(bars, spec)
     th = THEMES[spec.theme]
     fig, ax = plt.subplots(figsize=(16, 9), dpi=100, facecolor=th["bg"])

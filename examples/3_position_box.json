@@ -1,0 +1,43 @@
+{
+ "title": "A long position box that hit its target",
+ "ticker": "SYN0234",
+ "asof": "2025-06-18",
+ "reading": {
+  "ticker": "SYN0234",
+  "timeframe": "1D",
+  "last_visible_date": null,
+  "y_axis_scale": "linear",
+  "y_axis_ticks": [
+   "106.00",
+   "104.00",
+   "102.00",
+   "100.00",
+   "98.00",
+   "96.00",
+   "94.00",
+   "92.00"
+  ],
+  "drawings": [
+   {
+    "type": "horizontal_line",
+    "entry": null,
+    "stop": null,
+    "target": null,
+    "price": 96.79,
+    "top": null,
+    "bottom": null,
+    "estimated": false
+   },
+   {
+    "type": "position_box",
+    "entry": 98.8,
+    "stop": 95.0,
+    "target": 106.5,
+    "price": null,
+    "top": null,
+    "bottom": null,
+    "estimated": true
+   }
+  ]
+ }
+}

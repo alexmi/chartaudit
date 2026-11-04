@@ -67,16 +67,38 @@ def outcome_table(rows: list[dict]) -> list[dict]:
     return table
 
 
-def render_overlay(reading: ChartReading, bars: pd.DataFrame | None, asof: str | None, horizon: int = HORIZON) -> bytes:
+BOX_TEXT = {
+    "win": "hit the target after {bars} bars, {r:+.1f}R",
+    "loss": "hit the stop after {bars} bars, {r:+.1f}R",
+    "open": "still open after {horizon} bars, {r:+.1f}R so far",
+    "not_triggered": "entry never reached in the {horizon} bars after the chart",
+    "invalid": "stop is on the wrong side of entry, so it was not scored",
+}
+
+
+def box_notes(rows: list[dict], horizon: int = HORIZON) -> list[str]:
+    return [f"Position box ({r['side']}): " + BOX_TEXT[r["outcome"]].format(bars=r["bars_to_exit"], r=r["r"] or 0, horizon=horizon) + "."
+            for r in rows if r["source"] == "trader" and r["kind"] == "box"]
+
+
+def overlay_figure(reading: ChartReading, bars: pd.DataFrame | None, asof: str | None, horizon: int = HORIZON) -> Figure:
     fig = Figure(figsize=(9, 4.5), dpi=110)
     ax = fig.add_subplot()
+    seen = set()
+
+    def once(label: str) -> str:  # one legend entry per kind of line
+        if label in seen:
+            return "_nolegend_"
+        seen.add(label)
+        return label
+
     if bars is not None and asof is not None:
         end = len(bars.loc[:asof])
         win = bars.iloc[max(0, end - LOOKBACK): end + horizon]
-        ax.plot(win.index, win.close, color="#444", lw=1)
+        ax.plot(win.index, win.close, color="#444", lw=1, label=once("close"))
         ax.axvline(pd.Timestamp(asof), color="#888", ls="--", lw=1)
-        ax.text(pd.Timestamp(asof), 1.0, " chart date", transform=ax.get_xaxis_transform(), va="bottom", fontsize=8, color="#666")
-        ax.set_title("What the model read, drawn on real prices (scored only after the dashed line)", fontsize=10)
+        ax.text(pd.Timestamp(asof), 0.02, " chart date", transform=ax.get_xaxis_transform(), va="bottom", fontsize=8, color="#666")
+        ax.set_title("What the model read, drawn on the prices (scored only after the dashed line)", fontsize=10)
     else:
         ticks = _numbers(reading.y_axis_ticks)
         if len(ticks) >= 2:
@@ -85,18 +107,24 @@ def render_overlay(reading: ChartReading, bars: pd.DataFrame | None, asof: str |
         ax.set_title("What the model read (no price data, so no audit)", fontsize=10)
     for d in reading.drawings:
         if d.type == "horizontal_line" and d.price is not None:
-            ax.axhline(d.price, color="#1f6feb", lw=1.5, ls=":" if d.estimated else "-")
+            ax.axhline(d.price, color="#1f6feb", lw=1.5, ls=":" if d.estimated else "-", label=once("level read"))
         elif d.type == "zone" and None not in (d.top, d.bottom):
-            ax.axhspan(min(d.top, d.bottom), max(d.top, d.bottom), color="#1f6feb", alpha=0.15)
+            ax.axhspan(min(d.top, d.bottom), max(d.top, d.bottom), color="#1f6feb", alpha=0.15, label=once("zone read"))
         elif d.type == "position_box" and None not in (d.entry, d.stop, d.target):
-            ax.axhline(d.entry, color="#555", lw=1)
-            ax.axhline(d.stop, color="#d1242f", lw=1)
-            ax.axhline(d.target, color="#1a7f37", lw=1)
+            ax.axhline(d.entry, color="#555", lw=1, ls="--", label=once("box entry"))
+            ax.axhline(d.stop, color="#d1242f", lw=1, label=once("box stop"))
+            ax.axhline(d.target, color="#1a7f37", lw=1, label=once("box target"))
     if not reading.drawings:
         ax.text(0.5, 0.5, "no drawings found", transform=ax.transAxes, ha="center", color="#888")
+    if seen:
+        ax.legend(loc="best", fontsize=8, framealpha=0.9)
     fig.tight_layout()
+    return fig
+
+
+def render_overlay(reading: ChartReading, bars: pd.DataFrame | None, asof: str | None, horizon: int = HORIZON) -> bytes:
     buf = io.BytesIO()
-    FigureCanvasAgg(fig).print_png(buf)
+    FigureCanvasAgg(overlay_figure(reading, bars, asof, horizon)).print_png(buf)
     return buf.getvalue()
 
 
@@ -125,6 +153,6 @@ def handle_upload(path: str | None, ticker: str, asof: str, visitor: str,
     except Exception as e:
         log.warning("reading failed: %s", type(e).__name__)  # the type only: messages can carry keys
         return None, [], None, "Reading failed on our side; please try again later."
-    notes = out["notes"] + [f"Axis check: {f}" for f in out["axis"].get("flags", [])]
+    notes = box_notes(out["rows"]) + out["notes"] + [f"Axis check: {f}" for f in out["axis"].get("flags", [])]
     overlay = render_overlay(out["reading"], out["bars"], out["asof"])
     return overlay, outcome_table(out["rows"]), out["reading"].model_dump(), "\n".join(notes) or "Done."

@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 import gradio as gr  # noqa: E402
 
 from chartaudit.demo import handle_upload  # noqa: E402
+from chartaudit.examples import list_examples, load_example, run_example  # noqa: E402
 from chartaudit.live import FetchBudget, Limits, visitor_id  # noqa: E402
 from chartaudit.prices import fetch_alpha_vantage, get_bars  # noqa: E402
 from chartaudit.reader import make_client, read_chart  # noqa: E402
@@ -51,15 +52,28 @@ def bars_for(ticker: str):
     return get_bars(ticker, PRICE_DIR, fetch=FETCH)
 
 
-def run(path, ticker, asof, request: gr.Request):
-    visitor = visitor_id(dict(request.headers), request.client.host if request.client else None)
-    overlay, table, reading, notes = handle_upload(path, ticker, asof, visitor, read_png, bars_for, LIMITS)
+EXAMPLES = {load_example(n)["title"]: n for n in list_examples()}
+
+
+def show(overlay, table, reading, notes):
     if overlay is not None:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             f.write(overlay)
             overlay = f.name
     rows = [[r["source"], r["levels"], r["held"], r["broke"], r["untested"], r["pending"], r["hold rate"]] for r in table]
     return overlay, rows, reading, notes
+
+
+def run(path, ticker, asof, request: gr.Request):
+    visitor = visitor_id(dict(request.headers), request.client.host if request.client else None)
+    return show(*handle_upload(path, ticker, asof, visitor, read_png, bars_for, LIMITS))
+
+
+def run_saved(title):
+    """A built-in example: saved reading and synthetic prices, so no model call and no allowance used."""
+    name = EXAMPLES.get(title)
+    chart = str(load_example(name)["png_path"]) if name else None
+    return (chart, *show(*run_example(name))) if name else (None, None, [], None, "Pick an example.")
 
 
 with gr.Blocks(title="ChartAudit", analytics_enabled=False, delete_cache=(1800, 1800)) as demo:
@@ -70,6 +84,9 @@ with gr.Blocks(title="ChartAudit", analytics_enabled=False, delete_cache=(1800, 
             ticker = gr.Textbox(label="Ticker (optional, overrides what is read)", max_length=16)
             asof = gr.Textbox(label="Chart date, YYYY-MM-DD (optional)", max_length=20)
             go = gr.Button("Read and audit", variant="primary")
+            gr.Markdown("**Or try a built-in example** (synthetic chart, saved reading, no upload needed):")
+            pick = gr.Radio(list(EXAMPLES), label="Examples", value=None)
+            chart = gr.Image(label="Example chart", type="filepath", interactive=False)
         with gr.Column():
             overlay = gr.Image(label="What was read", type="filepath", interactive=False)
             notes = gr.Textbox(label="Notes", lines=3, interactive=False)
@@ -78,6 +95,7 @@ with gr.Blocks(title="ChartAudit", analytics_enabled=False, delete_cache=(1800, 
     reading = gr.JSON(label="Model reading")
     go.click(run, [upload, ticker, asof], [overlay, table, reading, notes],
              api_visibility="private", concurrency_limit=2)
+    pick.change(run_saved, [pick], [chart, overlay, table, reading, notes], api_visibility="private", concurrency_limit=4)
 
 demo.queue(max_size=20, api_open=False)
 

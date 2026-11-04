@@ -42,3 +42,9 @@ def test_ticks_hidden_by_level_tags_are_not_in_truth(tmp_path):
     assert "104.00" not in truth.y_axis_ticks and "100.00" not in truth.y_axis_ticks
     _, plain = render(SynthSpec(seed=2, box="short", theme="dark", label_levels=False), tmp_path)
     assert "104.00" in plain.y_axis_ticks
+
+
+def test_render_draws_the_bars_it_is_given(tmp_path):
+    bars = make_bars(9, n=140).iloc[:120]
+    _, truth = render(SynthSpec(seed=9), tmp_path, bars=bars)
+    assert truth.last_visible_date == bars.index[-1].strftime("%Y-%m-%d")
