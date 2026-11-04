@@ -28,6 +28,26 @@ One honest note from building the examples: Muse Spark read the first winning bo
 
 Rebuild the examples with `python scripts/make_examples.py` (three model calls), or `--truth` to save the answer key instead.
 
+## Results so far (Nov 3, 2026)
+
+**Real charts:** 51 marked-up charts from one trader's published analysis on Sep 8, 2026 (images kept private). Muse Spark read all 51; 122 of the 186 drawn prices had no printed label and were estimated from the price axis. Daily prices are in hand for 29 of the charts so far (the free price API allows 25 lookups a day; the other 22 charts fill next). Of those, 28 have drawings to score, and all 28 passed the axis check.
+
+Levels, scored only on the 20 trading days after each chart:
+
+| | levels | reached | held | broke | hold rate | 95% interval |
+|---|---|---|---|---|---|---|
+| Drawn by the trader | 66 | 15 | 3 | 12 | 20% | 7% to 45% |
+| Swing pivots (same charts) | 58 | 27 | 9 | 18 | 33% | 19% to 52% |
+| Random, matched side and distance | 330 | 79 | 21 | 58 | 27% | 18% to 37% |
+| Random, anywhere on the chart | 330 | 140 | 35 | 105 | 25% | 19% to 33% |
+
+* **No edge yet.** Drawn levels held 20% of the time when price reached them, against 25% to 33% for pivot and random levels. The intervals overlap, so on this sample the drawn levels are neither better nor measurably worse than random ones.
+* **Touches did not help.** Levels touched three or more times before the chart held 2 of 10 times.
+* **Zones:** 6 of 11 drawn zones that price reached held (55%), against 57% for random zones of the same width.
+* **Position boxes:** one was reached, and it lost.
+
+This is one chart set and small samples, so it settles nothing about this trader or about chart lines in general. What it shows is that the question can now be asked of any set of marked-up charts, cheaply and without hindsight. Next: the remaining 22 charts, then four more chart sets that are already read.
+
 ## Run the page
 
 Locally: `.venv/bin/pip install -e ".[demo]"`, then `.venv/bin/python app.py`.
