@@ -41,7 +41,7 @@ Levels, scored only on the 20 trading days after each chart:
 | Random, matched side and distance | 455 | 113 | 32 | 81 | 28% | 21% to 37% |
 | Random, anywhere on the chart | 455 | 182 | 48 | 134 | 26% | 21% to 33% |
 
-* **No edge.** Drawn levels held 24% of the time when price reached them, against 26% to 38% for pivot and random levels. The intervals overlap, so on this sample the drawn levels are neither better nor measurably worse than random ones.
+* **No detectable advantage.** Drawn levels held 24% of the time when price reached them, against 26% to 38% for pivot and random levels. The intervals overlap, so on this sample the drawn levels are neither better nor measurably worse than random ones.
 * **Touches helped little.** Levels touched three or more times before the chart held 4 of 13 times (31%).
 * **Zones:** 9 of 18 drawn zones that price reached held (50%), against 59% for random zones of the same width and 68% for zones at swing pivots.
 * **Position boxes:** one was reached, and it lost.
