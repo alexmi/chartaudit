@@ -1,7 +1,7 @@
 """Audit: score each chart's drawn levels and boxes on the bars after the chart, beside baselines.
 
     python scripts/run_audit.py --readings runs/2026-10-27/results.jsonl \
-        --charts data/private/breakpoint_2026-10-27/charts.csv --out runs/audit_2026-10-29
+        --charts data/private/<chart set>/charts.csv --out runs/audit_2026-10-29
 
 charts.csv gives the truth the model can't read reliably: id (image file stem), ticker, asof
 (the chart's date, YYYY-MM-DD). Baselines on the same visible bars: pivot levels (one per

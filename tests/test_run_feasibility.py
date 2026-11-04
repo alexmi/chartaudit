@@ -114,7 +114,7 @@ def test_private_subfolders_are_read(tmp_path):
     priv = tmp_path / "private"
     (priv / "batch").mkdir(parents=True)
     (priv / "G1_X.png").write_bytes(b"a")
-    (priv / "batch" / "BP_NVDA.png").write_bytes(b"b")
+    (priv / "batch" / "A1_NVDA.png").write_bytes(b"b")
     seen = []
 
     def rec(path, client, model):
@@ -122,7 +122,7 @@ def test_private_subfolders_are_read(tmp_path):
         raise ReadError("skip")
 
     run(0, priv, tmp_path / "out", reader=rec, client=(None, "m"))
-    assert sorted(seen) == ["BP_NVDA.png", "G1_X.png"]
+    assert sorted(seen) == ["A1_NVDA.png", "G1_X.png"]
 
 
 def test_seed_offset_gives_fresh_charts_with_the_same_variants():
